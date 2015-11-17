@@ -4,9 +4,6 @@
 
 It demonstrates how to grab stereo images with the ZED SDK and display the results in a Oculus Rift headset.
 
-**Warning:**
- - GPU->CPU readback is time-consuming
-
 **Prerequisites**
  - ZED SDK 0.9.2
  - [Oculus PC Runtime 0.8.0.0-Beta](https://developer.oculus.com/downloads/pc/0.8.0.0-beta/Oculus_Runtime_for_Windows)
@@ -22,6 +19,6 @@ For more information on this sample, please read our tutorial [Using the ZED Cam
                Main Hotkeys              |
 ---------------------------------------- |
  'q'   : Exit the application            |
- 'c'   : Pause/unpause the rendering     |
- 'r'   : Reset hit to zero               |
- 'Mouse wheel'   : increase/decrease hit |
+ 'c'   : Pause/Unpause the rendering     |
+ 'r'   : Reset HIT to zero               |
+ 'Mouse wheel'   : Increase/Decrease HIT |
