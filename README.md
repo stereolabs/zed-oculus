@@ -6,12 +6,11 @@ It demonstrates how to grab stereo images with the ZED SDK and display the resul
 
 **Warning:**
  - GPU->CPU readback is time-consuming
- - This sample does not offer the best experience for the end user (camera latency)
 
 **Prerequisites**
  - ZED SDK 0.9.2
- - Oculus PC Runtime 0.8.0.0-Beta
- - Oculus PC SDK 0.8.0.0-Beta
+ - Oculus PC Runtime 0.8.0.0-Beta: https://developer.oculus.com/downloads/pc/0.8.0.0-beta/Oculus_Runtime_for_Windows/
+ - Oculus PC SDK 0.8.0.0-Beta: https://developer.oculus.com/downloads/pc/0.8.0.0-beta/Oculus_SDK_for_Windows/
  - OpenGL 3+
  - GLEW 1.12.0
  - SDL2 2.0.3
