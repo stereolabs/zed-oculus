@@ -6,7 +6,7 @@ It demonstrates how to grab stereo images with the ZED SDK and display the resul
 
 **Warning:**
  - GPU->CPU readback is time-consuming
- - This sample does not offer the best experience for the end user (no camera latency manager)
+ - This sample does not offer the best experience for the end user (camera latency)
  
 For more information on this sample, please read our tutorial at: https://www.stereolabs.com/blog/index.php/2015/11/17/516/
 
