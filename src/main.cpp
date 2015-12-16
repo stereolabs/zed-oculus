@@ -24,7 +24,9 @@
 
 #include <iostream>
 #include <Windows.h>
+
 #include <GL/glew.h>
+
 #include <stddef.h>
 
 #include <SDL.h>
@@ -33,6 +35,14 @@
 #include <OVR.h>
 #include <OVR_CAPI.h>
 #include <OVR_CAPI_GL.h>
+
+#if OPENGL_GPU_INTEROP
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
+
+#endif
 
 #include <zed/Camera.hpp>
 
@@ -51,6 +61,17 @@ GLchar* OVR_ZED_VS =
 				b_coordTexture = in_texCoord;\n \
 				gl_Position = vec4(in_vertex.x - hit, in_vertex.y, in_vertex.z,1);\n \
 			}";
+#if OPENGL_GPU_INTEROP
+GLchar* OVR_ZED_FS =
+			"#version 330 core\n \
+			uniform sampler2D u_textureZED; \n \
+			in vec2 b_coordTexture;\n \
+			out vec4 out_color; \n \
+			void main()\n \
+			{\n \
+				out_color = vec4(texture(u_textureZED, b_coordTexture).bgr,1); \n \
+			}";
+#else
 GLchar* OVR_ZED_FS =
 			"#version 330 core\n \
 			uniform sampler2D u_textureZED; \n \
@@ -60,6 +81,7 @@ GLchar* OVR_ZED_FS =
 			{\n \
 				out_color = vec4(texture(u_textureZED, b_coordTexture).rgb,1); \n \
 			}";
+#endif
 
 int main(int argc, char **argv)
 {
@@ -124,18 +146,29 @@ int main(int argc, char **argv)
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	// Generate OpenGL texture for right images of the ZED camera
 	glGenTextures(1, &zedTextureID_R);
 	glBindTexture(GL_TEXTURE_2D, zedTextureID_R);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
+#if OPENGL_GPU_INTEROP
+	cudaGraphicsResource* cimg_L;
+	cudaGraphicsResource* cimg_R;
+	cudaError_t errL, errR;
+	errL = cudaGraphicsGLRegisterImage(&cimg_L, zedTextureID_L, GL_TEXTURE_2D, cudaGraphicsMapFlagsNone);
+	errR = cudaGraphicsGLRegisterImage(&cimg_R, zedTextureID_R, GL_TEXTURE_2D, cudaGraphicsMapFlagsNone);
+	if (errL != cudaSuccess || errR != cudaSuccess)
+	{
+		std::cout << "ERROR: cannot create CUDA texture : " << errL << "|" << errR << std::endl;
+	}
+#endif
 
 	ovrHmdDesc hmdDesc = ovr_GetHmdDesc(hmd);
 	// Get the texture sizes of Oculus eyes
@@ -200,10 +233,47 @@ int main(int argc, char **argv)
 	glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
+	// Initialize a default Pose
+	ovrPosef eyeRenderPose;
+	// Set Identity quaternion
+	eyeRenderPose.Orientation.x = 0;
+	eyeRenderPose.Orientation.y = 0;
+	eyeRenderPose.Orientation.z = 0;
+	eyeRenderPose.Orientation.w = 1;
+	// Set World's origin position
+	eyeRenderPose.Position.x = 0.f;
+	eyeRenderPose.Position.y = 0.f;
+	eyeRenderPose.Position.z = 0;
+
+	ovrLayerEyeFov ld;
+	ld.Header.Type = ovrLayerType_EyeFov;
+	// Tell to the Oculus compositor that our texture origin is at the bottom left
+	ld.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft | ovrLayerFlag_HeadLocked;   // Because OpenGL | Disable head tracking
+	// Set the Oculus layer eye field of view for each view
+	for (int eye = 0; eye < 2; ++eye)
+	{
+		// Set the color texture as the current swap texture
+		ld.ColorTexture[eye] = ptextureSet;
+		// Set the viewport as the right or left vertical half part of the color texture
+		ld.Viewport[eye] = OVR::Recti(eye == ovrEye_Left ? 0 : bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
+		// Set the field of view
+		ld.Fov[eye] = hmdDesc.DefaultEyeFov[eye];
+		// Set the pose matrix
+		ld.RenderPose[eye] = eyeRenderPose;
+	}
+	double sensorSampleTime = ovr_GetTimeInSeconds();
+	ld.SensorSampleTime = sensorSampleTime;
+
 	// Get the render description of the left and right "eyes" of the Oculus headset
 	ovrEyeRenderDesc eyeRenderDesc[2];
 	eyeRenderDesc[0] = ovr_GetRenderDesc(hmd, ovrEye_Left, hmdDesc.DefaultEyeFov[0]);
 	eyeRenderDesc[1] = ovr_GetRenderDesc(hmd, ovrEye_Right, hmdDesc.DefaultEyeFov[1]);
+	// Get the Oculus view scale description
+	ovrVector3f viewOffset[2] = { eyeRenderDesc[0].HmdToEyeViewOffset, eyeRenderDesc[1].HmdToEyeViewOffset };
+	ovrViewScaleDesc viewScaleDesc;
+	viewScaleDesc.HmdSpaceToWorldScaleInMeters = 1.0f;
+	viewScaleDesc.HmdToEyeViewOffset[0] = viewOffset[0];
+	viewScaleDesc.HmdToEyeViewOffset[1] = viewOffset[1];
 
 	// Create and compile the shader's sources
 	Shader shader(OVR_ZED_VS, OVR_ZED_FS);
@@ -243,7 +313,7 @@ int main(int argc, char **argv)
 	
 	// Initialize hit value
 	float hit = 0.02f;
-	// Initialize a boolean that will be used to stop the applicationÂ’s loop and another one to pause/unpause rendering
+	// Initialize a boolean that will be used to stop the application’s loop and another one to pause/unpause rendering
 	bool end = false;
 	bool refresh = true;
 	// SDL variable that will be used to store input events
@@ -265,6 +335,7 @@ int main(int argc, char **argv)
 	glEnableVertexAttribArray(Shader::ATTRIB_TEXTURE2D_POS);
 	glBindBuffer(GL_ARRAY_BUFFER, rectVBO[1]);
 	glVertexAttribPointer(Shader::ATTRIB_TEXTURE2D_POS, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
 	// Main loop
 	while (!end)
 	{
@@ -297,6 +368,7 @@ int main(int argc, char **argv)
 		c++;
 		// Start frame chronometer
 		time1 = SDL_GetTicks();
+		
 		// While there is an event catched and not tested
 		while (SDL_PollEvent(&events))
 		{
@@ -322,21 +394,25 @@ int main(int argc, char **argv)
 				hit += 0.005f * s;
 			}
 		}
-		
-		// Get pose matrix from Oculus IMU
-		ovrVector3f viewOffset[2] = { eyeRenderDesc[0].HmdToEyeViewOffset, eyeRenderDesc[1].HmdToEyeViewOffset };
-		ovrPosef eyeRenderPose[2];
-		double displayMidpointSeconds = ovr_GetPredictedDisplayTime(hmd, 0);
-		ovrTrackingState hmdState = ovr_GetTrackingState(hmd, displayMidpointSeconds, ovrTrue);
-		double sensorSampleTime = ovr_GetTimeInSeconds();
-		// We will not use the pose matrix but the Oculus compositor needs it
-		ovr_CalcEyePoses(hmdState.HeadPose.ThePose, viewOffset, eyeRenderPose);
 
-		// If rendering is unpaused
-		if (refresh)
+		// If rendering is unpaused and 
+		// successful grab ZED image
+		if (refresh && !zed->grab(sl::zed::SENSING_MODE::RAW, false, false))
 		{
-			// Grab ZED image
-			zed->grab(sl::zed::SENSING_MODE::RAW, false, false);
+#if OPENGL_GPU_INTEROP
+			sl::zed::Mat m = zed->retrieveImage_gpu(sl::zed::SIDE::LEFT);
+			cudaArray_t arrIm;
+			cudaGraphicsMapResources(1, &cimg_L, 0);
+			cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_L, 0, 0);
+			cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice);
+			cudaGraphicsUnmapResources(1, &cimg_L, 0);
+
+			m = zed->retrieveImage_gpu(sl::zed::SIDE::RIGHT);
+			cudaGraphicsMapResources(1, &cimg_R, 0);
+			cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_R, 0, 0);
+			cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice); // *4 = 4 channels * 1 bytes (uint)
+			cudaGraphicsUnmapResources(1, &cimg_R, 0);
+#endif
 			// Increment the CurrentIndex to point to the next texture within the output swap texture set.
 			// CurrentIndex must be advanced round-robin fashion every time we draw a new frame
 			ptextureSet->CurrentIndex = (ptextureSet->CurrentIndex + 1) % ptextureSet->TextureCount;
@@ -356,44 +432,23 @@ int main(int argc, char **argv)
 			for (int eye = 0; eye < 2; eye++)
 			{
 				// Set the left or right vertical half of the buffer as the viewport
-				glViewport(eye == ovrEye_Left ? 0 : bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);	
+				glViewport(ld.Viewport[eye].Pos.x, ld.Viewport[eye].Pos.y, ld.Viewport[eye].Size.w, ld.Viewport[eye].Size.h);
 				// Bind the left or right ZED image
 				glBindTexture(GL_TEXTURE_2D, eye == ovrEye_Left ? zedTextureID_L : zedTextureID_R);
+#if !OPENGL_GPU_INTEROP
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, zed->retrieveImage(eye == ovrEye_Left ? sl::zed::SIDE::LEFT : sl::zed::SIDE::RIGHT).data);
+#endif
 				// Bind the hit value
 				glUniform1f(glGetUniformLocation(shader.getProgramId(), "hit"), eye == ovrEye_Left ? hit : -hit);
 				// Draw the ZED image
 				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 			}
 
-			// Get the Oculus view scale description
-			ovrViewScaleDesc viewScaleDesc;
-			viewScaleDesc.HmdSpaceToWorldScaleInMeters = 1.0f;
-			viewScaleDesc.HmdToEyeViewOffset[0] = viewOffset[0];
-			viewScaleDesc.HmdToEyeViewOffset[1] = viewOffset[1];
-
-			ovrLayerEyeFov ld;
-			ld.Header.Type = ovrLayerType_EyeFov;
-			// Tell to the Oculus compositor that our texture origin is at the bottom left
-			ld.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;   // Because OpenGL
-			// Set the Oculus layer eye field of view for each view
-			for (int eye = 0; eye < 2; ++eye)
-			{
-				// Set the color texture as the current swap texture
-				ld.ColorTexture[eye] = ptextureSet;
-				// Set the viewport as the right or left vertical half part of the color texture
-				ld.Viewport[eye] = OVR::Recti(eye == ovrEye_Left ? 0 : bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
-				// Set the field of view
-				ld.Fov[eye] = hmdDesc.DefaultEyeFov[eye];
-				// Set the pose matrix
-				ld.RenderPose[eye] = eyeRenderPose[eye];
-			}
-			ld.SensorSampleTime = sensorSampleTime;
-
 			ovrLayerHeader* layers = &ld.Header;
 			// Submit the frame to the Oculus compositor
 			// which will display the frame in the Oculus headset
 			result = ovr_SubmitFrame(hmd, 0, &viewScaleDesc, &layers, 1);
+
 			if (!OVR_SUCCESS(result))
 			{
 				std::cout << "ERROR: failed to submit frame" << std::endl;
@@ -423,6 +478,7 @@ int main(int argc, char **argv)
 			SDL_GL_SwapWindow(window);
 		}
 	}
+	
 	// Disable all OpenGL buffer
 	glDisableVertexAttribArray(Shader::ATTRIB_TEXTURE2D_POS);
 	glDisableVertexAttribArray(Shader::ATTRIB_VERTICES_POS);
