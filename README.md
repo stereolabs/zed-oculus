@@ -14,7 +14,13 @@ It demonstrates how to grab stereo images with the ZED SDK and display the resul
 
 For more information on this sample, please read our tutorial [Using the ZED Camera with Oculus Rift](https://www.stereolabs.com/blog/index.php/2015/11/17/516/).
 
-To enable Opengl GPU Interoperability (which increases performance), add the preprocessor definition OPENGL_GPU_INTEROP in your compilation command.
+**OpenGL GPU Interoperability**
+
+/!\ You must have NVIDIA GPU Computing Toolkit installed on your computer.
+
+To enable Opengl GPU Interoperability (which increases performance):
+ - add the preprocessor definition OPENGL_GPU_INTEROP;
+ - link the CUDA library cudart_static.lib (commonly at "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.0\lib\x64\cudart_static.lib").
 
 ##Keyboard shortcuts
  
