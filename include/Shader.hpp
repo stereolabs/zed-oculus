@@ -27,7 +27,6 @@ public:
     Shader(GLchar* vs, GLchar* fs);
     ~Shader();
  
-    bool load();
     GLuint getProgramId();
  
     static const GLint ATTRIB_VERTICES_POS = 0;
