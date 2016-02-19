@@ -320,9 +320,9 @@ int main(int argc, char **argv)
 	SDL_Event events;
 	// Initialize time variables. They will be used to limit the number of frames rendered per second.
 	// Frame counter
-	unsigned int c = 0, zedc = 1;
+	unsigned int riftc = 0, zedc = 1;
 	// Chronometer
-	unsigned int time = 0, zedtime = 0, zedFPS = 0;
+	unsigned int rifttime = 0, zedtime = 0, zedFPS = 0;
 	int time1 = 0, timePerFrame = 0;
 	int frameRate = (int)(1000 / MAX_FPS);
 
@@ -361,18 +361,18 @@ int main(int argc, char **argv)
 			zedc = 0;
 			zedtime = 0;
 		}
-		// Increment the chronometer and the frame counter
-		time += timePerFrame;
-		c++;
-		// If chronometer reached 200 milliseconds
-		if (time > 200)
+		// Increment the Rift chronometer and the Rift frame counter
+		rifttime += timePerFrame;
+		riftc++;
+		// If Rift chronometer reached 200 milliseconds
+		if (rifttime > 200)
 		{
 			// Display FPS
-			std::cout << "\rRIFT FPS: " << 1000 / (time / c) << " | ZED FPS: " << zedFPS;
-			// Reset chronometer
-			time = 0;
-			// Reset frame counter
-			c = 0;			
+			std::cout << "\rRIFT FPS: " << 1000 / (rifttime / riftc) << " | ZED FPS: " << zedFPS;
+			// Reset Rift chronometer
+			rifttime = 0;
+			// Reset Rift frame counter
+			riftc = 0;			
 		}
 		// Start frame chronometer
 		time1 = SDL_GetTicks();
