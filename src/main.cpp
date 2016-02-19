@@ -319,6 +319,10 @@ int main(int argc, char **argv)
 	// SDL variable that will be used to store input events
 	SDL_Event events;
 	// Initialize time variables. They will be used to limit the number of frames rendered per second.
+	// Frame counter
+	unsigned int c = 0;
+	// Chronometer
+	unsigned int time = 0;
 	int time1 = 0, timePerFrame = 0;
 	int frameRate = (int)(1000 / MAX_FPS);
 
@@ -349,23 +353,20 @@ int main(int argc, char **argv)
 			timePerFrame = frameRate;
 		}
 
-		// Frame counter
-		static unsigned int c = 0;
-		// Chronometer
-		static unsigned int time = 0;
-		// If chronometer reached 1 second
-		if (time > 1000)
+		
+		// Increment the chronometer and the frame counter
+		time += timePerFrame;
+		c++;
+		// If chronometer reached 200 milliseconds
+		if (time > 200)
 		{
 			// Display FPS
-			std::cout << "FPS: " << c << std::endl;
+			std::cout << "\rFPS: " << 1000 / (time / c);
 			// Reset chronometer
 			time = 0;
 			// Reset frame counter
 			c = 0;
 		}
-		// Increment the chronometer and the frame counter
-		time += timePerFrame;
-		c++;
 		// Start frame chronometer
 		time1 = SDL_GetTicks();
 		
