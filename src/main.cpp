@@ -458,7 +458,10 @@ int main(int argc, char **argv)
 			}
 		}
 		/*
-		Note: Even if we don't ask to refresh the framebuffer or if the Camera::grab() doesn't catch a new frame, we have to submit an image to the Rift; it needs 75Hz refresh. Else there will be jumbs, black frames and/or glitches in the headset.
+		Note: Even if we don't ask to refresh the framebuffer or if the Camera::grab() 
+		      doesn't catch a new frame, we have to submit an image to the Rift; it 
+			  needs 75Hz refresh. Else there will be jumbs, black frames and/or glitches 
+			  in the headset.
 		*/
 		ovrLayerHeader* layers = &ld.Header;
 		// Submit the frame to the Oculus compositor
