@@ -444,40 +444,44 @@ int main(int argc, char **argv)
 				// Draw the ZED image
 				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 			}
-
-			ovrLayerHeader* layers = &ld.Header;
-			// Submit the frame to the Oculus compositor
-			// which will display the frame in the Oculus headset
-			result = ovr_SubmitFrame(hmd, 0, &viewScaleDesc, &layers, 1);
-
-			if (!OVR_SUCCESS(result))
-			{
-				std::cout << "ERROR: failed to submit frame" << std::endl;
-				glDeleteBuffers(3, rectVBO);
-				ovr_DestroySwapTextureSet(hmd, ptextureSet);
-				ovr_DestroyMirrorTexture(hmd, &mirrorTexture->Texture);
-				ovr_Destroy(hmd);
-				ovr_Shutdown();
-				SDL_GL_DeleteContext(glContext);
-				SDL_DestroyWindow(window);
-				SDL_Quit();
-				delete zed;
-				return -1;
-			}
-
-			// Copy the frame to the mirror buffer
-			// which will be drawn in the SDL2 image
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, mirrorFBOID);
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-			GLint w = mirrorTexture->OGL.Header.TextureSize.w;
-			GLint h = mirrorTexture->OGL.Header.TextureSize.h;
-			glBlitFramebuffer(0, h, w, 0,
-				0, 0, w, h,
-				GL_COLOR_BUFFER_BIT, GL_NEAREST);
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-			// Swap the SDL2 window
-			SDL_GL_SwapWindow(window);
 		}
+		/*
+		Note: Even if we don't ask to refresh the framebuffer or if the Camera::grab() doesn't catch a new frame,
+		      we have to submit an image to the Rift; it needs 75Hz refresh. Else there will be jumbs, black
+			  frames and/or glitches in the headset.
+		*/
+		ovrLayerHeader* layers = &ld.Header;
+		// Submit the frame to the Oculus compositor
+		// which will display the frame in the Oculus headset
+		result = ovr_SubmitFrame(hmd, 0, &viewScaleDesc, &layers, 1);
+
+		if (!OVR_SUCCESS(result))
+		{
+			std::cout << "ERROR: failed to submit frame" << std::endl;
+			glDeleteBuffers(3, rectVBO);
+			ovr_DestroySwapTextureSet(hmd, ptextureSet);
+			ovr_DestroyMirrorTexture(hmd, &mirrorTexture->Texture);
+			ovr_Destroy(hmd);
+			ovr_Shutdown();
+			SDL_GL_DeleteContext(glContext);
+			SDL_DestroyWindow(window);
+			SDL_Quit();
+			delete zed;
+			return -1;
+		}
+
+		// Copy the frame to the mirror buffer
+		// which will be drawn in the SDL2 image
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, mirrorFBOID);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		GLint w = mirrorTexture->OGL.Header.TextureSize.w;
+		GLint h = mirrorTexture->OGL.Header.TextureSize.h;
+		glBlitFramebuffer(0, h, w, 0,
+			0, 0, w, h,
+			GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		// Swap the SDL2 window
+		SDL_GL_SwapWindow(window);
 	}
 	
 	// Disable all OpenGL buffer
