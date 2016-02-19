@@ -320,9 +320,9 @@ int main(int argc, char **argv)
 	SDL_Event events;
 	// Initialize time variables. They will be used to limit the number of frames rendered per second.
 	// Frame counter
-	unsigned int c = 0;
+	unsigned int c = 0, zedc = 1;
 	// Chronometer
-	unsigned int time = 0;
+	unsigned int time = 0, zedtime = 0, zedFPS = 0;
 	int time1 = 0, timePerFrame = 0;
 	int frameRate = (int)(1000 / MAX_FPS);
 
@@ -352,8 +352,15 @@ int main(int argc, char **argv)
 			SDL_Delay(frameRate - timePerFrame);
 			timePerFrame = frameRate;
 		}
-
-		
+		// Increment the ZED chronometer
+		zedtime += timePerFrame;
+		// If ZED chronometer reached 1 second
+		if (zedtime > 1000)
+		{
+			zedFPS = zedc;
+			zedc = 0;
+			zedtime = 0;
+		}
 		// Increment the chronometer and the frame counter
 		time += timePerFrame;
 		c++;
@@ -361,11 +368,11 @@ int main(int argc, char **argv)
 		if (time > 200)
 		{
 			// Display FPS
-			std::cout << "\rFPS: " << 1000 / (time / c);
+			std::cout << "\rRIFT FPS: " << 1000 / (time / c) << " | ZED FPS: " << zedFPS;
 			// Reset chronometer
 			time = 0;
 			// Reset frame counter
-			c = 0;
+			c = 0;			
 		}
 		// Start frame chronometer
 		time1 = SDL_GetTicks();
@@ -398,57 +405,60 @@ int main(int argc, char **argv)
 
 		// If rendering is unpaused and 
 		// successful grab ZED image
-		if (refresh && !zed->grab(sl::zed::SENSING_MODE::RAW, false, false))
+		if (!zed->grab(sl::zed::SENSING_MODE::RAW, false, false))
 		{
-#if OPENGL_GPU_INTEROP
-			sl::zed::Mat m = zed->retrieveImage_gpu(sl::zed::SIDE::LEFT);
-			cudaArray_t arrIm;
-			cudaGraphicsMapResources(1, &cimg_L, 0);
-			cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_L, 0, 0);
-			cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice);
-			cudaGraphicsUnmapResources(1, &cimg_L, 0);
-
-			m = zed->retrieveImage_gpu(sl::zed::SIDE::RIGHT);
-			cudaGraphicsMapResources(1, &cimg_R, 0);
-			cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_R, 0, 0);
-			cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice); // *4 = 4 channels * 1 bytes (uint)
-			cudaGraphicsUnmapResources(1, &cimg_R, 0);
-#endif
-			// Increment the CurrentIndex to point to the next texture within the output swap texture set.
-			// CurrentIndex must be advanced round-robin fashion every time we draw a new frame
-			ptextureSet->CurrentIndex = (ptextureSet->CurrentIndex + 1) % ptextureSet->TextureCount;
-			// Get the current swap texture pointer
-			auto tex = reinterpret_cast<ovrGLTexture*>(&ptextureSet->Textures[ptextureSet->CurrentIndex]);
-			// Bind the frame buffer
-			glBindFramebuffer(GL_FRAMEBUFFER, fboID);
-			// Set its color layer 0 as the current swap texture
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex->OGL.TexId, 0);
-			// Set its depth layer as our depth buffer
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffID, 0);
-			// Clear the frame buffer
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glClearColor(0, 0, 0, 1);
-
-			// Render for each Oculus eye the equivalent ZED image
-			for (int eye = 0; eye < 2; eye++)
+			// Update the ZED frame counter
+			zedc++;
+			if (refresh)
 			{
-				// Set the left or right vertical half of the buffer as the viewport
-				glViewport(ld.Viewport[eye].Pos.x, ld.Viewport[eye].Pos.y, ld.Viewport[eye].Size.w, ld.Viewport[eye].Size.h);
-				// Bind the left or right ZED image
-				glBindTexture(GL_TEXTURE_2D, eye == ovrEye_Left ? zedTextureID_L : zedTextureID_R);
-#if !OPENGL_GPU_INTEROP
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, zed->retrieveImage(eye == ovrEye_Left ? sl::zed::SIDE::LEFT : sl::zed::SIDE::RIGHT).data);
+#if OPENGL_GPU_INTEROP
+				sl::zed::Mat m = zed->retrieveImage_gpu(sl::zed::SIDE::LEFT);
+				cudaArray_t arrIm;
+				cudaGraphicsMapResources(1, &cimg_L, 0);
+				cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_L, 0, 0);
+				cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice);
+				cudaGraphicsUnmapResources(1, &cimg_L, 0);
+
+				m = zed->retrieveImage_gpu(sl::zed::SIDE::RIGHT);
+				cudaGraphicsMapResources(1, &cimg_R, 0);
+				cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_R, 0, 0);
+				cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice); // *4 = 4 channels * 1 bytes (uint)
+				cudaGraphicsUnmapResources(1, &cimg_R, 0);
 #endif
-				// Bind the hit value
-				glUniform1f(glGetUniformLocation(shader.getProgramId(), "hit"), eye == ovrEye_Left ? hit : -hit);
-				// Draw the ZED image
-				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+				// Increment the CurrentIndex to point to the next texture within the output swap texture set.
+				// CurrentIndex must be advanced round-robin fashion every time we draw a new frame
+				ptextureSet->CurrentIndex = (ptextureSet->CurrentIndex + 1) % ptextureSet->TextureCount;
+				// Get the current swap texture pointer
+				auto tex = reinterpret_cast<ovrGLTexture*>(&ptextureSet->Textures[ptextureSet->CurrentIndex]);
+				// Bind the frame buffer
+				glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+				// Set its color layer 0 as the current swap texture
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex->OGL.TexId, 0);
+				// Set its depth layer as our depth buffer
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffID, 0);
+				// Clear the frame buffer
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+				glClearColor(0, 0, 0, 1);
+
+				// Render for each Oculus eye the equivalent ZED image
+				for (int eye = 0; eye < 2; eye++)
+				{
+					// Set the left or right vertical half of the buffer as the viewport
+					glViewport(ld.Viewport[eye].Pos.x, ld.Viewport[eye].Pos.y, ld.Viewport[eye].Size.w, ld.Viewport[eye].Size.h);
+					// Bind the left or right ZED image
+					glBindTexture(GL_TEXTURE_2D, eye == ovrEye_Left ? zedTextureID_L : zedTextureID_R);
+#if !OPENGL_GPU_INTEROP
+					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, zed->retrieveImage(eye == ovrEye_Left ? sl::zed::SIDE::LEFT : sl::zed::SIDE::RIGHT).data);
+#endif
+					// Bind the hit value
+					glUniform1f(glGetUniformLocation(shader.getProgramId(), "hit"), eye == ovrEye_Left ? hit : -hit);
+					// Draw the ZED image
+					glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+				}
 			}
 		}
 		/*
-		Note: Even if we don't ask to refresh the framebuffer or if the Camera::grab() doesn't catch a new frame,
-		      we have to submit an image to the Rift; it needs 75Hz refresh. Else there will be jumbs, black
-			  frames and/or glitches in the headset.
+		Note: Even if we don't ask to refresh the framebuffer or if the Camera::grab() doesn't catch a new frame, we have to submit an image to the Rift; it needs 75Hz refresh. Else there will be jumbs, black frames and/or glitches in the headset.
 		*/
 		ovrLayerHeader* layers = &ld.Header;
 		// Submit the frame to the Oculus compositor
