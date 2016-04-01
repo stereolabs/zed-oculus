@@ -5,7 +5,7 @@
 It demonstrates how to grab stereo images with the ZED SDK and display the results in a Oculus Rift headset.
 
 **Prerequisites**
- - ZED SDK 0.9.2
+ - ZED SDK 0.9.2 or later
  - [Oculus PC Runtime 1.3.0](https://developer.oculus.com/downloads/pc/0.8.0.0-beta/Oculus_Runtime_for_Windows)
  - [Oculus PC SDK 1.3.0](https://www.oculus.com/en-us/setup/) (This URL may change in near future)
  - OpenGL 3+
