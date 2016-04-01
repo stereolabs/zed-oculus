@@ -32,7 +32,7 @@
 #include <SDL.h>
 #include <SDL_syswm.h>
 
-#include <OVR.h>
+#include <Extras/OVR_Math.h>
 #include <OVR_CAPI.h>
 #include <OVR_CAPI_GL.h>
 
@@ -48,7 +48,7 @@
 
 #include "Shader.hpp"
 
-#define MAX_FPS 75
+#define MAX_FPS 80
 
 GLchar* OVR_ZED_VS = 
 			"#version 330 core\n \
@@ -96,10 +96,10 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	
-	ovrSession  hmd;
+	ovrSession  session;
 	ovrGraphicsLuid luid;
 	// Connect to the Oculus headset
-	result = ovr_Create(&hmd, &luid);
+	result = ovr_Create(&session, &luid);
 	if (OVR_FAILURE(result))
 	{
 		std::cout << "ERROR: Oculus Rift not detected" << std::endl;
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
 	if (zederr != sl::zed::SUCCESS)
 	{
 		std::cout << "ERROR: " << sl::zed::errcode2str(zederr) << std::endl;
-		ovr_Destroy(hmd);
+		ovr_Destroy(session);
 		ovr_Shutdown();
 		SDL_GL_DeleteContext(glContext);
 		SDL_DestroyWindow(window);
@@ -170,23 +170,39 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	ovrHmdDesc hmdDesc = ovr_GetHmdDesc(hmd);
+	ovrHmdDesc hmdDesc = ovr_GetHmdDesc(session);
 	// Get the texture sizes of Oculus eyes
-	ovrSizei textureSize0 = ovr_GetFovTextureSize(hmd, ovrEye_Left, hmdDesc.DefaultEyeFov[0], 1.0f);
-	ovrSizei textureSize1 = ovr_GetFovTextureSize(hmd, ovrEye_Right, hmdDesc.DefaultEyeFov[1], 1.0f);
+	ovrSizei textureSize0 = ovr_GetFovTextureSize(session, ovrEye_Left, hmdDesc.DefaultEyeFov[0], 1.0f);
+	ovrSizei textureSize1 = ovr_GetFovTextureSize(session, ovrEye_Right, hmdDesc.DefaultEyeFov[1], 1.0f);
 	// Compute the final size of the render buffer
 	ovrSizei bufferSize;
 	bufferSize.w = textureSize0.w + textureSize1.w;
 	bufferSize.h = std::max(textureSize0.h, textureSize1.h);
 	// Initialize OpenGL swap textures to render
-	ovrSwapTextureSet* ptextureSet = 0;
+	ovrTextureSwapChain textureChain = nullptr;
+	// Description of the swap chain
+	ovrTextureSwapChainDesc descTextureSwap = {};
+	descTextureSwap.Type = ovrTexture_2D;
+	descTextureSwap.ArraySize = 1;
+	descTextureSwap.Width = bufferSize.w;
+	descTextureSwap.Height = bufferSize.h;
+	descTextureSwap.MipLevels = 1;
+	descTextureSwap.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+	descTextureSwap.SampleCount = 1;
+	descTextureSwap.StaticImage = ovrFalse;
+	// Create the OpenGL texture swap chain
+	result = ovr_CreateTextureSwapChainGL(session, &descTextureSwap, &textureChain);
+
+	int length = 0;
+	ovr_GetTextureSwapChainLength(session, textureChain, &length);
 	
-	if (OVR_SUCCESS(ovr_CreateSwapTextureSetGL(hmd, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h, &ptextureSet)))
+	if (OVR_SUCCESS(result))
 	{
-		for (int i = 0; i < ptextureSet->TextureCount; ++i)
+		for (int i = 0; i < length; ++i)
 		{
-			ovrGLTexture* tex = (ovrGLTexture*)&ptextureSet->Textures[i];
-			glBindTexture(GL_TEXTURE_2D, tex->OGL.TexId);
+			GLuint chainTexId;
+			ovr_GetTextureSwapChainBufferGL(session, textureChain, i, &chainTexId);
+			glBindTexture(GL_TEXTURE_2D, chainTexId);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -196,7 +212,7 @@ int main(int argc, char **argv)
 	else
 	{
 		std::cout << "ERROR: failed creating swap texture" << std::endl;
-		ovr_Destroy(hmd);
+		ovr_Destroy(session);
 		ovr_Shutdown();
 		SDL_GL_DeleteContext(glContext);
 		SDL_DestroyWindow(window);
@@ -220,60 +236,44 @@ int main(int argc, char **argv)
 	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, bufferSize.w, bufferSize.h, 0, GL_DEPTH_COMPONENT, type, NULL);
 
 	// Create a mirror texture to display the render result in the SDL2 window
-	ovrGLTexture* mirrorTexture = nullptr;
-	result = ovr_CreateMirrorTextureGL(hmd, GL_SRGB8_ALPHA8, winWidth, winHeight, reinterpret_cast<ovrTexture**>(&mirrorTexture));
+	ovrMirrorTextureDesc descMirrorTexture;
+	memset(&descMirrorTexture, 0, sizeof(descMirrorTexture));
+	descMirrorTexture.Width = winWidth;
+	descMirrorTexture.Height = winHeight;
+	descMirrorTexture.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+
+	ovrMirrorTexture mirrorTexture = nullptr;
+	result = ovr_CreateMirrorTextureGL(session, &descMirrorTexture, &mirrorTexture);
 	if (!OVR_SUCCESS(result))
 	{
 		std::cout << "ERROR: Failed to create mirror texture" << std::endl;
 	}
+	GLuint mirrorTextureId;
+	ovr_GetMirrorTextureBufferGL(session, mirrorTexture, &mirrorTextureId);
+
 	GLuint mirrorFBOID;
 	glGenFramebuffers(1, &mirrorFBOID);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, mirrorFBOID);
-	glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTexture->OGL.TexId, 0);
+	glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTextureId, 0);
 	glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	// Frame index used by the compositor
+	// it needs to be updated each new frame
+	long long frameIndex = 0;
+
+	// FloorLevel will give tracking poses where the floor height is 0
+	ovr_SetTrackingOriginType(session, ovrTrackingOrigin_FloorLevel);
 
 	// Initialize a default Pose
-	ovrPosef eyeRenderPose;
-	// Set Identity quaternion
-	eyeRenderPose.Orientation.x = 0;
-	eyeRenderPose.Orientation.y = 0;
-	eyeRenderPose.Orientation.z = 0;
-	eyeRenderPose.Orientation.w = 1;
-	// Set World's origin position
-	eyeRenderPose.Position.x = 0.f;
-	eyeRenderPose.Position.y = 0.f;
-	eyeRenderPose.Position.z = 0;
-
-	ovrLayerEyeFov ld;
-	ld.Header.Type = ovrLayerType_EyeFov;
-	// Tell to the Oculus compositor that our texture origin is at the bottom left
-	ld.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft | ovrLayerFlag_HeadLocked;   // Because OpenGL | Disable head tracking
-	// Set the Oculus layer eye field of view for each view
-	for (int eye = 0; eye < 2; ++eye)
-	{
-		// Set the color texture as the current swap texture
-		ld.ColorTexture[eye] = ptextureSet;
-		// Set the viewport as the right or left vertical half part of the color texture
-		ld.Viewport[eye] = OVR::Recti(eye == ovrEye_Left ? 0 : bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
-		// Set the field of view
-		ld.Fov[eye] = hmdDesc.DefaultEyeFov[eye];
-		// Set the pose matrix
-		ld.RenderPose[eye] = eyeRenderPose;
-	}
-	double sensorSampleTime = ovr_GetTimeInSeconds();
-	ld.SensorSampleTime = sensorSampleTime;
+	ovrPosef eyeRenderPose[2];
 
 	// Get the render description of the left and right "eyes" of the Oculus headset
 	ovrEyeRenderDesc eyeRenderDesc[2];
-	eyeRenderDesc[0] = ovr_GetRenderDesc(hmd, ovrEye_Left, hmdDesc.DefaultEyeFov[0]);
-	eyeRenderDesc[1] = ovr_GetRenderDesc(hmd, ovrEye_Right, hmdDesc.DefaultEyeFov[1]);
+	eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, hmdDesc.DefaultEyeFov[0]);
+	eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, hmdDesc.DefaultEyeFov[1]);
 	// Get the Oculus view scale description
-	ovrVector3f viewOffset[2] = { eyeRenderDesc[0].HmdToEyeViewOffset, eyeRenderDesc[1].HmdToEyeViewOffset };
-	ovrViewScaleDesc viewScaleDesc;
-	viewScaleDesc.HmdSpaceToWorldScaleInMeters = 1.0f;
-	viewScaleDesc.HmdToEyeViewOffset[0] = viewOffset[0];
-	viewScaleDesc.HmdToEyeViewOffset[1] = viewOffset[1];
+	ovrVector3f hmdToEyeOffset[2];
+	double sensorSampleTime;
 
 	// Create and compile the shader's sources
 	Shader shader(OVR_ZED_VS, OVR_ZED_FS);
@@ -325,6 +325,9 @@ int main(int argc, char **argv)
 	unsigned int rifttime = 0, zedtime = 0, zedFPS = 0;
 	int time1 = 0, timePerFrame = 0;
 	int frameRate = (int)(1000 / MAX_FPS);
+
+	// This boolean is used to test if the application is focused
+	bool isVisible = true;
 
 	// Enable the shader
 	glUseProgram(shader.getProgramId());
@@ -403,57 +406,80 @@ int main(int argc, char **argv)
 			}
 		}
 
-		// If rendering is unpaused and 
-		// successful grab ZED image
-		if (!zed->grab(sl::zed::SENSING_MODE::RAW, false, false))
+		// Get texture swap index where we must draw our frame
+		GLuint curTexId;
+		int curIndex;
+		ovr_GetTextureSwapChainCurrentIndex(session, textureChain, &curIndex);
+		ovr_GetTextureSwapChainBufferGL(session, textureChain, curIndex, &curTexId);
+
+		// Call ovr_GetRenderDesc each frame to get the ovrEyeRenderDesc, as the returned values (e.g. HmdToEyeOffset) may change at runtime.
+		eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, hmdDesc.DefaultEyeFov[0]);
+		eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, hmdDesc.DefaultEyeFov[1]);
+		hmdToEyeOffset[0] = eyeRenderDesc[0].HmdToEyeOffset;
+		hmdToEyeOffset[1] = eyeRenderDesc[1].HmdToEyeOffset;
+		// Get eye poses, feeding in correct IPD offset
+		ovr_GetEyePoses(session, frameIndex, ovrTrue, hmdToEyeOffset, eyeRenderPose, &sensorSampleTime);
+
+		// If the application is focused
+		if (isVisible)
 		{
-			// Update the ZED frame counter
-			zedc++;
-			if (refresh)
+			// If successful grab a new ZED image
+			if (!zed->grab(sl::zed::SENSING_MODE::RAW, false, false))
 			{
-#if OPENGL_GPU_INTEROP
-				sl::zed::Mat m = zed->retrieveImage_gpu(sl::zed::SIDE::LEFT);
-				cudaArray_t arrIm;
-				cudaGraphicsMapResources(1, &cimg_L, 0);
-				cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_L, 0, 0);
-				cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice);
-				cudaGraphicsUnmapResources(1, &cimg_L, 0);
-
-				m = zed->retrieveImage_gpu(sl::zed::SIDE::RIGHT);
-				cudaGraphicsMapResources(1, &cimg_R, 0);
-				cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_R, 0, 0);
-				cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice); // *4 = 4 channels * 1 bytes (uint)
-				cudaGraphicsUnmapResources(1, &cimg_R, 0);
-#endif
-				// Increment the CurrentIndex to point to the next texture within the output swap texture set.
-				// CurrentIndex must be advanced round-robin fashion every time we draw a new frame
-				ptextureSet->CurrentIndex = (ptextureSet->CurrentIndex + 1) % ptextureSet->TextureCount;
-				// Get the current swap texture pointer
-				auto tex = reinterpret_cast<ovrGLTexture*>(&ptextureSet->Textures[ptextureSet->CurrentIndex]);
-				// Bind the frame buffer
-				glBindFramebuffer(GL_FRAMEBUFFER, fboID);
-				// Set its color layer 0 as the current swap texture
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex->OGL.TexId, 0);
-				// Set its depth layer as our depth buffer
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffID, 0);
-				// Clear the frame buffer
-				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-				glClearColor(0, 0, 0, 1);
-
-				// Render for each Oculus eye the equivalent ZED image
-				for (int eye = 0; eye < 2; eye++)
+				// Update the ZED frame counter
+				zedc++;
+				if (refresh)
 				{
-					// Set the left or right vertical half of the buffer as the viewport
-					glViewport(ld.Viewport[eye].Pos.x, ld.Viewport[eye].Pos.y, ld.Viewport[eye].Size.w, ld.Viewport[eye].Size.h);
-					// Bind the left or right ZED image
-					glBindTexture(GL_TEXTURE_2D, eye == ovrEye_Left ? zedTextureID_L : zedTextureID_R);
-#if !OPENGL_GPU_INTEROP
-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, zed->retrieveImage(eye == ovrEye_Left ? sl::zed::SIDE::LEFT : sl::zed::SIDE::RIGHT).data);
+#if OPENGL_GPU_INTEROP
+					sl::zed::Mat m = zed->retrieveImage_gpu(sl::zed::SIDE::LEFT);
+					cudaArray_t arrIm;
+					cudaGraphicsMapResources(1, &cimg_L, 0);
+					cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_L, 0, 0);
+					cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice);
+					cudaGraphicsUnmapResources(1, &cimg_L, 0);
+
+					m = zed->retrieveImage_gpu(sl::zed::SIDE::RIGHT);
+					cudaGraphicsMapResources(1, &cimg_R, 0);
+					cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_R, 0, 0);
+					cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice); // *4 = 4 channels * 1 bytes (uint)
+					cudaGraphicsUnmapResources(1, &cimg_R, 0);
 #endif
-					// Bind the hit value
-					glUniform1f(glGetUniformLocation(shader.getProgramId(), "hit"), eye == ovrEye_Left ? hit : -hit);
-					// Draw the ZED image
-					glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+					// Bind the frame buffer
+					glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+					// Set its color layer 0 as the current swap texture
+					glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, curTexId, 0);
+					// Set its depth layer as our depth buffer
+					glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffID, 0);
+					// Clear the frame buffer
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+					glClearColor(0, 0, 0, 1);
+
+					// Render for each Oculus eye the equivalent ZED image
+					for (int eye = 0; eye < 2; eye++)
+					{
+						// Set the left or right vertical half of the buffer as the viewport
+						glViewport(eye == ovrEye_Left ? 0 : bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
+						// Bind the left or right ZED image
+						glBindTexture(GL_TEXTURE_2D, eye == ovrEye_Left ? zedTextureID_L : zedTextureID_R);
+#if !OPENGL_GPU_INTEROP
+						glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, zed->retrieveImage(eye == ovrEye_Left ? sl::zed::SIDE::LEFT : sl::zed::SIDE::RIGHT).data);
+#endif
+						// Bind the hit value
+						glUniform1f(glGetUniformLocation(shader.getProgramId(), "hit"), eye == ovrEye_Left ? hit : -hit);
+						// Draw the ZED image
+						glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+					}
+
+					// Avoids an error when calling SetAndClearRenderSurface during next iteration.
+					// Without this, during the next while loop iteration SetAndClearRenderSurface
+					// would bind a framebuffer with an invalid COLOR_ATTACHMENT0 because the texture ID
+					// associated with COLOR_ATTACHMENT0 had been unlocked by calling wglDXUnlockObjectsNV.
+					glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+					glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+					glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+					// Commit changes to the textures so they get picked up frame
+					ovr_CommitTextureSwapChain(session, textureChain);
 				}
 			}
 		}
@@ -463,18 +489,38 @@ int main(int argc, char **argv)
 			  needs 75Hz refresh. Else there will be jumbs, black frames and/or glitches 
 			  in the headset.
 		*/
+
+		ovrLayerEyeFov ld;
+		ld.Header.Type = ovrLayerType_EyeFov;
+		// Tell to the Oculus compositor that our texture origin is at the bottom left
+		ld.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;   // Because OpenGL | Disable head tracking
+		// Set the Oculus layer eye field of view for each view
+		for (int eye = 0; eye < 2; ++eye)
+		{
+			// Set the color texture as the current swap texture
+			ld.ColorTexture[eye] = textureChain;
+			// Set the viewport as the right or left vertical half part of the color texture
+			ld.Viewport[eye] = OVR::Recti(eye == ovrEye_Left ? 0 : bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
+			// Set the field of view
+			ld.Fov[eye] = hmdDesc.DefaultEyeFov[eye];
+			// Set the pose matrix
+			ld.RenderPose[eye] = eyeRenderPose[eye];
+		}
+
+		ld.SensorSampleTime = sensorSampleTime;
+
 		ovrLayerHeader* layers = &ld.Header;
 		// Submit the frame to the Oculus compositor
 		// which will display the frame in the Oculus headset
-		result = ovr_SubmitFrame(hmd, 0, &viewScaleDesc, &layers, 1);
+		result = ovr_SubmitFrame(session, frameIndex, nullptr, &layers, 1);
 
 		if (!OVR_SUCCESS(result))
 		{
 			std::cout << "ERROR: failed to submit frame" << std::endl;
 			glDeleteBuffers(3, rectVBO);
-			ovr_DestroySwapTextureSet(hmd, ptextureSet);
-			ovr_DestroyMirrorTexture(hmd, &mirrorTexture->Texture);
-			ovr_Destroy(hmd);
+			ovr_DestroyTextureSwapChain(session, textureChain);
+			ovr_DestroyMirrorTexture(session, mirrorTexture);
+			ovr_Destroy(session);
 			ovr_Shutdown();
 			SDL_GL_DeleteContext(glContext);
 			SDL_DestroyWindow(window);
@@ -483,18 +529,35 @@ int main(int argc, char **argv)
 			return -1;
 		}
 
+		if (result == ovrSuccess && !isVisible)
+		{
+			std::cout << "The application is now shown in the headset." << std::endl;
+		}
+		isVisible = (result == ovrSuccess);
+
+		// This is not really needed for this application but it may be usefull for an more advanced application
+		ovrSessionStatus sessionStatus;
+		ovr_GetSessionStatus(session, &sessionStatus);
+		if (sessionStatus.ShouldRecenter)
+		{
+			std::cout << "Recenter Tracking asked by Session" << std::endl;
+			ovr_RecenterTrackingOrigin(session);
+		}
+
 		// Copy the frame to the mirror buffer
 		// which will be drawn in the SDL2 image
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, mirrorFBOID);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		GLint w = mirrorTexture->OGL.Header.TextureSize.w;
-		GLint h = mirrorTexture->OGL.Header.TextureSize.h;
+		GLint w = winWidth;
+		GLint h = winHeight;
 		glBlitFramebuffer(0, h, w, 0,
 			0, 0, w, h,
 			GL_COLOR_BUFFER_BIT, GL_NEAREST);
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 		// Swap the SDL2 window
 		SDL_GL_SwapWindow(window);
+		// Do not forget to increment the frameIndex!
+		frameIndex++;
 	}
 	
 	// Disable all OpenGL buffer
@@ -508,9 +571,9 @@ int main(int argc, char **argv)
 	// Delete the Vertex Buffer Objects of the rectangle
 	glDeleteBuffers(3, rectVBO);
 	// Delete SDL, OpenGL, Oculus and ZED context
-	ovr_DestroySwapTextureSet(hmd, ptextureSet);
-	ovr_DestroyMirrorTexture(hmd, &mirrorTexture->Texture);
-	ovr_Destroy(hmd);
+	ovr_DestroyTextureSwapChain(session, textureChain);
+	ovr_DestroyMirrorTexture(session, mirrorTexture);
+	ovr_Destroy(session);
 	ovr_Shutdown();
 	SDL_GL_DeleteContext(glContext);
 	SDL_DestroyWindow(window);
