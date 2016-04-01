@@ -12,8 +12,6 @@ It demonstrates how to grab stereo images with the ZED SDK and display the resul
  - [GLEW 1.12.0](http://glew.sourceforge.net)
  - [SDL2 2.0.3](http://libsdl.org/download-2.0.php)
 
-For more information on this sample, please read our tutorial [Using the ZED Camera with Oculus Rift](https://www.stereolabs.com/blog/index.php/2015/11/17/516/).
-
 **OpenGL GPU Interoperability**
 
 /!\ You must have NVIDIA GPU Computing Toolkit installed on your computer.
