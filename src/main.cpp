@@ -481,6 +481,9 @@ int main(int argc, char **argv)
 					// Commit changes to the textures so they get picked up frame
 					ovr_CommitTextureSwapChain(session, textureChain);
 				}
+
+				// Do not forget to increment the frameIndex!
+				frameIndex++;
 			}
 		}
 		/*
@@ -513,7 +516,7 @@ int main(int argc, char **argv)
 		// Submit the frame to the Oculus compositor
 		// which will display the frame in the Oculus headset
 		result = ovr_SubmitFrame(session, frameIndex, nullptr, &layers, 1);
-
+		
 		if (!OVR_SUCCESS(result))
 		{
 			std::cout << "ERROR: failed to submit frame" << std::endl;
@@ -528,7 +531,7 @@ int main(int argc, char **argv)
 			delete zed;
 			return -1;
 		}
-
+		
 		if (result == ovrSuccess && !isVisible)
 		{
 			std::cout << "The application is now shown in the headset." << std::endl;
@@ -556,8 +559,6 @@ int main(int argc, char **argv)
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 		// Swap the SDL2 window
 		SDL_GL_SwapWindow(window);
-		// Do not forget to increment the frameIndex!
-		frameIndex++;
 	}
 	
 	// Disable all OpenGL buffer
