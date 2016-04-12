@@ -296,6 +296,13 @@ int main(int argc, char **argv)
 		heightGL = (heightFinal) / (float)(bufferSize.h);
 		widthGL = ((zed->getImageSize().width * (heightFinal / (float)zed->getImageSize().height)) / (float)widthFinal);
 	}
+	else
+	{
+		std::cout << "WARNING: ZED parameters got wrong values."
+			"Default vertical and horizontal FOV are used.\n"
+			"Check your calibration file or check if your ZED is not too close to a surface or an object."
+			<< std::endl;
+	}
 
 	// Create a rectangle with the coordonates computed and push it in GPU memory.
 	float rectVertices[12] = { -widthGL, -heightGL, 0, widthGL, -heightGL, 0, widthGL, heightGL, 0, -widthGL, heightGL, 0 };
