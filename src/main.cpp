@@ -280,16 +280,22 @@ int main(int argc, char **argv)
 
 	// Compute the ZED image field of view with the ZED parameters
 	float zedFovH = atanf(zed->getImageSize().width / (zed->getParameters()->LeftCam.fx *2.f)) * 2.f;
+	assert(zedFovH);
 	// Compute the Oculus' field of view with its parameters
 	float ovrFovH = (atanf(hmdDesc.DefaultEyeFov[0].LeftTan) + atanf(hmdDesc.DefaultEyeFov[0].RightTan));
 	// Compute the useful part of the ZED image
 	unsigned int usefulWidth = zed->getImageSize().width * ovrFovH / zedFovH;
 	// Compute the size of the final image displayed in the headset with the ZED image's aspect-ratio kept
 	unsigned int widthFinal = bufferSize.w / 2;
-	unsigned int heightFinal = zed->getImageSize().height * widthFinal / usefulWidth;
-	// Convert this size to OpenGL viewport's frame's coordinates
-	float heightGL = (heightFinal) / (float)(bufferSize.h);
-	float widthGL = ((zed->getImageSize().width * (heightFinal / (float)zed->getImageSize().height)) / (float)widthFinal);
+	float heightGL = 1.f;
+	float widthGL = 1.f;
+	if (usefulWidth > 0.f)
+	{
+		unsigned int heightFinal = zed->getImageSize().height * widthFinal / usefulWidth;
+		// Convert this size to OpenGL viewport's frame's coordinates
+		heightGL = (heightFinal) / (float)(bufferSize.h);
+		widthGL = ((zed->getImageSize().width * (heightFinal / (float)zed->getImageSize().height)) / (float)widthFinal);
+	}
 
 	// Create a rectangle with the coordonates computed and push it in GPU memory.
 	float rectVertices[12] = { -widthGL, -heightGL, 0, widthGL, -heightGL, 0, widthGL, heightGL, 0, -widthGL, heightGL, 0 };
