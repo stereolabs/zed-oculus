@@ -22,7 +22,7 @@ For more information on this sample, please read our tutorial [Using the ZED Cam
 
 To enable Opengl GPU Interoperability (which increases performance):
  - add the preprocessor definition OPENGL_GPU_INTEROP;
- - link the CUDA library cudart_static.lib (commonly at "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.0\lib\x64\cudart_static.lib").
+ - link the CUDA library cudart_static.lib (commonly at "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\lib\x64\cudart_static.lib").
 
 ##Keyboard shortcuts
  
