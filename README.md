@@ -1,5 +1,7 @@
 # zed-oculus
 
+_Note: This sample may not work with the new Oculus Rift CV1. An update is coming soon._
+
 **This sample is designed to work with the ZED stereo camera only and requires the ZED SDK. For more information: https://www.stereolabs.com**
 
 It demonstrates how to grab stereo images with the ZED SDK and display the results in a Oculus Rift headset.
