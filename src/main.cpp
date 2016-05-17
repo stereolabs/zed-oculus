@@ -29,8 +29,8 @@
 
 #include <stddef.h>
 
-#include <SDL.h>
-#include <SDL_syswm.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_syswm.h>
 
 #include <Extras/OVR_Math.h>
 #include <OVR_CAPI.h>
@@ -48,18 +48,27 @@
 
 #include "Shader.hpp"
 
-#define MAX_FPS 80
+#define MAX_FPS 120
 
 GLchar* OVR_ZED_VS = 
 			"#version 330 core\n \
 			layout(location=0) in vec3 in_vertex;\n \
 			layout(location=1) in vec2 in_texCoord;\n \
 			uniform float hit; \n \
+			uniform uint isLeft; \n \
 			out vec2 b_coordTexture; \n \
 			void main()\n \
 			{\n \
-				b_coordTexture = in_texCoord;\n \
-				gl_Position = vec4(in_vertex.x - hit, in_vertex.y, in_vertex.z,1);\n \
+				if (isLeft == 1U)\n \
+				{\n \
+					b_coordTexture = in_texCoord;\n \
+					gl_Position = vec4(in_vertex.x - hit, in_vertex.y, in_vertex.z,1);\n \
+				}\n \
+				else \n \
+				{\n \
+					b_coordTexture = vec2(1.0 - in_texCoord.x, in_texCoord.y);\n \
+					gl_Position = vec4(-in_vertex.x + hit, in_vertex.y, in_vertex.z,1);\n \
+				}\n \
 			}";
 #if OPENGL_GPU_INTEROP
 GLchar* OVR_ZED_FS =
@@ -280,8 +289,7 @@ int main(int argc, char **argv)
 
 	// Compute the ZED image field of view with the ZED parameters
 	float zedFovH = atanf(zed->getImageSize().width / (zed->getParameters()->LeftCam.fx *2.f)) * 2.f;
-	assert(zedFovH);
-	// Compute the Oculus' field of view with its parameters
+	// Compute the Horizontal Oculus' field of view with its parameters
 	float ovrFovH = (atanf(hmdDesc.DefaultEyeFov[0].LeftTan) + atanf(hmdDesc.DefaultEyeFov[0].RightTan));
 	// Compute the useful part of the ZED image
 	unsigned int usefulWidth = zed->getImageSize().width * ovrFovH / zedFovH;
@@ -304,8 +312,28 @@ int main(int argc, char **argv)
 			<< std::endl;
 	}
 
-	// Create a rectangle with the coordonates computed and push it in GPU memory.
-	float rectVertices[12] = { -widthGL, -heightGL, 0, widthGL, -heightGL, 0, widthGL, heightGL, 0, -widthGL, heightGL, 0 };
+	// Compute the Vertical Oculus' field of view with its parameters
+	float ovrFovV = (atanf(hmdDesc.DefaultEyeFov[0].UpTan) + atanf(hmdDesc.DefaultEyeFov[0].DownTan));
+
+	// Compute the center of the optical lenses of the headset
+	float offsetLensCenterX = ((atanf(hmdDesc.DefaultEyeFov[0].LeftTan)) / ovrFovH) * 2.f - 1.f;
+	float offsetLensCenterY = ((atanf(hmdDesc.DefaultEyeFov[0].UpTan)) / ovrFovV) * 2.f - 1.f;
+
+
+	// Create a rectangle with the computed coordinates and push it in GPU memory.
+	struct GLScreenCoordinates
+	{
+		float left, up, right, down;
+	} screenCoord;
+	screenCoord.up    = heightGL + offsetLensCenterY;
+	screenCoord.down  = heightGL - offsetLensCenterY;
+	screenCoord.right = widthGL + offsetLensCenterX;
+	screenCoord.left  = widthGL - offsetLensCenterX;
+
+	float rectVertices[12] = { -screenCoord.left,  -screenCoord.up,   0,
+								screenCoord.right, -screenCoord.up,   0, 
+								screenCoord.right,  screenCoord.down, 0, 
+							   -screenCoord.left,   screenCoord.down, 0 };
 	GLuint rectVBO[3];
 	glGenBuffers(1, &rectVBO[0]);
 	glBindBuffer(GL_ARRAY_BUFFER, rectVBO[0]);
@@ -480,6 +508,8 @@ int main(int argc, char **argv)
 #endif
 						// Bind the hit value
 						glUniform1f(glGetUniformLocation(shader.getProgramId(), "hit"), eye == ovrEye_Left ? hit : -hit);
+						// Bind the isLeft value
+						glUniform1ui(glGetUniformLocation(shader.getProgramId(), "isLeft"), eye == ovrEye_Left ? 1U : 0U);
 						// Draw the ZED image
 						glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 					}
