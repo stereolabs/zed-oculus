@@ -1,20 +1,18 @@
 # zed-oculus
 
-**This sample uses an old version of the Oculus SDK. The branch [OVRSDK1_3_upgrade](https://github.com/stereolabs/zed-oculus/tree/OVRSDK1_3_upgrade) is up-to-date with the Oculus SDK(1.3).
+_Note: This sample works with Oculus DK2 and CV1._
 
 **This sample is designed to work with the ZED stereo camera only and requires the ZED SDK. For more information: https://www.stereolabs.com**
 
 It demonstrates how to grab stereo images with the ZED SDK and display the results in a Oculus Rift headset.
 
 **Prerequisites**
- - ZED SDK 0.9.2
- - [Oculus PC Runtime 0.8.0.0-Beta](https://developer.oculus.com/downloads/pc/0.8.0.0-beta/Oculus_Runtime_for_Windows)
- - [Oculus PC SDK 0.8.0.0-Beta](https://developer.oculus.com/downloads/pc/0.8.0.0-beta/Oculus_SDK_for_Windows)
+ - ZED SDK 0.9.2 or later
+ - [Oculus PC Runtime 1.3.0](https://www.oculus.com/en-us/setup/) (This URL may change in near future)
+ - [Oculus PC SDK 1.3.0](https://developer.oculus.com/downloads/pc/1.3.0/Oculus_SDK_for_Windows/) 
  - OpenGL 3+
  - [GLEW 1.12.0](http://glew.sourceforge.net)
  - [SDL2 2.0.3](http://libsdl.org/download-2.0.php)
-
-For more information on this sample, please read our tutorial [Using the ZED Camera with Oculus Rift](https://www.stereolabs.com/blog/index.php/2015/11/17/516/).
 
 **OpenGL GPU Interoperability**
 
