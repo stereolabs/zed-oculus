@@ -1,6 +1,6 @@
 # zed-oculus
 
-**This sample uses an old version of the Oculus SDK. The branch [OVRSDK1_3_upgrade](https://github.com/stereolabs/zed-oculus/tree/OVRSDK1_3_upgrade) is up-to-date with the Oculus SDK(1.3).
+**This sample uses an old version of the Oculus SDK. The branch [master](https://github.com/stereolabs/zed-oculus/tree/master) is up-to-date with the Oculus SDK(1.3).
 
 **This sample is designed to work with the ZED stereo camera only and requires the ZED SDK. For more information: https://www.stereolabs.com**
 
