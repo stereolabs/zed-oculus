@@ -13,6 +13,8 @@ if(COMMAND cmake_policy)
 	cmake_policy(SET CMP0015 OLD)  
 endif(COMMAND cmake_policy)
 
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
 SET(EXECUTABLE_OUTPUT_PATH ".")
 
 if(MSVC12)
@@ -55,9 +57,9 @@ SET(SDL_LIBRARIES SDL2 SDL2main)
 
 
 # Mandatory
-find_package(CUDA 6.5 REQUIRED)
+find_package(CUDA 7.5 REQUIRED)
 find_package(OpenGL 3.0 REQUIRED)
-find_package(OpenCV 2.4 COMPONENTS core highgui imgproc REQUIRED)
+find_package(OpenCV 3.0 REQUIRED)
 
 include_directories(${ZED_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
@@ -67,6 +69,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${OCULUS_INCLUDE_DIRS})
 include_directories(${SDL_INCLUDE_DIRS})
 include_directories(${CUDA_INCLUDE_DIRS})
+include_directories($ENV{EIGEN_DIR})
 
 
 link_directories(${ZED_LIBRARY_DIR})

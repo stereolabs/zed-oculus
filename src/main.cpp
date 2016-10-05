@@ -133,7 +133,8 @@ int main(int argc, char **argv)
 	// Initialize the ZED Camera
 	sl::zed::Camera* zed = 0;
 	zed = new sl::zed::Camera(sl::zed::HD720);
-	sl::zed::ERRCODE zederr = zed->init(sl::zed::MODE::PERFORMANCE, 0);
+	sl::zed::InitParams init_parameters(sl::zed::MODE::PERFORMANCE);
+	sl::zed::ERRCODE zederr = zed->init(init_parameters);
 	int zedWidth = zed->getImageSize().width;
 	int zedHeight = zed->getImageSize().height;
 	if (zederr != sl::zed::SUCCESS)
@@ -465,7 +466,7 @@ int main(int argc, char **argv)
 		if (isVisible)
 		{
 			// If successful grab a new ZED image
-			if (!zed->grab(sl::zed::SENSING_MODE::RAW, false, false))
+			if (!zed->grab(sl::zed::SENSING_MODE::STANDARD, false, false))
 			{
 				// Update the ZED frame counter
 				zedc++;
