@@ -29,22 +29,19 @@
 
 #include <stddef.h>
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_syswm.h>
+#include <SDL.h>
+#include <SDL_syswm.h>
 
 #include <Extras/OVR_Math.h>
 #include <OVR_CAPI.h>
 #include <OVR_CAPI_GL.h>
 
-#if OPENGL_GPU_INTEROP
 
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
-#endif
-
-#include <zed/Camera.hpp>
+#include <sl/Camera.hpp>
 
 #include "Shader.hpp"
 
@@ -70,7 +67,7 @@ GLchar* OVR_ZED_VS =
 					gl_Position = vec4(-in_vertex.x + hit, in_vertex.y, in_vertex.z,1);\n \
 				}\n \
 			}";
-#if OPENGL_GPU_INTEROP
+
 GLchar* OVR_ZED_FS =
         "#version 330 core\n \
 			uniform sampler2D u_textureZED; \n \
@@ -80,17 +77,15 @@ GLchar* OVR_ZED_FS =
 			{\n \
 				out_color = vec4(texture(u_textureZED, b_coordTexture).bgr,1); \n \
 			}";
-#else
-GLchar* OVR_ZED_FS =
-        "#version 330 core\n \
-			uniform sampler2D u_textureZED; \n \
-			in vec2 b_coordTexture;\n \
-			out vec4 out_color; \n \
-			void main()\n \
-			{\n \
-				out_color = vec4(texture(u_textureZED, b_coordTexture).rgb,1); \n \
-			}";
-#endif
+
+
+
+//objects
+sl::Camera zed;
+sl::Mat zed_image_Left;
+sl::Mat zed_image_Right;
+
+
 
 int main(int argc, char **argv) {
     // Initialize SDL2's context
@@ -128,22 +123,26 @@ int main(int argc, char **argv) {
     SDL_GL_SetSwapInterval(0);
 
     // Initialize the ZED Camera
-    sl::zed::Camera* zed = 0;
-    zed = new sl::zed::Camera(sl::zed::HD720);
-    sl::zed::InitParams init_parameters(sl::zed::MODE::PERFORMANCE);
-    sl::zed::ERRCODE zederr = zed->init(init_parameters);
-    int zedWidth = zed->getImageSize().width;
-    int zedHeight = zed->getImageSize().height;
-    if (zederr != sl::zed::SUCCESS) {
-        std::cout << "ERROR: " << sl::zed::errcode2str(zederr) << std::endl;
+	sl::InitParameters init_parameters;
+	init_parameters.depth_mode = sl::DEPTH_MODE_PERFORMANCE;
+
+
+	sl::ERROR_CODE err_ = zed.open(init_parameters);
+ 
+
+    if (err_ != sl::SUCCESS) {
+        std::cout << "ERROR: " << sl::errorCode2str(err_) << std::endl;
         ovr_Destroy(session);
         ovr_Shutdown();
         SDL_GL_DeleteContext(glContext);
         SDL_DestroyWindow(window);
         SDL_Quit();
-        delete zed;
+		zed.close();
         return -1;
     }
+
+	int zedWidth = zed.getResolution().width;
+	int zedHeight = zed.getResolution().height;
 
     GLuint zedTextureID_L, zedTextureID_R;
     // Generate OpenGL texture for left images of the ZED camera
@@ -164,7 +163,6 @@ int main(int argc, char **argv) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-#if OPENGL_GPU_INTEROP
     cudaGraphicsResource* cimg_L;
     cudaGraphicsResource* cimg_R;
     cudaError_t errL, errR;
@@ -173,7 +171,6 @@ int main(int argc, char **argv) {
     if (errL != cudaSuccess || errR != cudaSuccess) {
         std::cout << "ERROR: cannot create CUDA texture : " << errL << "|" << errR << std::endl;
     }
-#endif
 
     ovrHmdDesc hmdDesc = ovr_GetHmdDesc(session);
     // Get the texture sizes of Oculus eyes
@@ -218,7 +215,7 @@ int main(int argc, char **argv) {
         SDL_GL_DeleteContext(glContext);
         SDL_DestroyWindow(window);
         SDL_Quit();
-        delete zed;
+		zed.close();
         return -1;
     }
     // Generate frame buffer to render
@@ -278,21 +275,27 @@ int main(int argc, char **argv) {
     // Create and compile the shader's sources
     Shader shader(OVR_ZED_VS, OVR_ZED_FS);
 
-    // Compute the ZED image field of view with the ZED parameters
-    float zedFovH = atanf(zed->getImageSize().width / (zed->getParameters()->LeftCam.fx * 2.f)) * 2.f;
+    // Get the ZED image field of view with the ZED parameters
+	float zedFovH = zed.getCameraInformation().calibration_parameters.left_cam.h_fov * M_PI /180.f;
     // Compute the Horizontal Oculus' field of view with its parameters
     float ovrFovH = (atanf(hmdDesc.DefaultEyeFov[0].LeftTan) + atanf(hmdDesc.DefaultEyeFov[0].RightTan));
+
+	std::cout << " FOV comparison : " << zedFovH << " : " << ovrFovH << std::endl;
     // Compute the useful part of the ZED image
-    unsigned int usefulWidth = zed->getImageSize().width * ovrFovH / zedFovH;
+	
+	// compute the usefulwidth seems to be more coherent, but images look too zoomed in. You can switch between both with to check the difference.
+	//unsigned int usefulWidth = zedWidth *ovrFovH / zedFovH;
+	unsigned int usefulWidth = zedWidth;
+
     // Compute the size of the final image displayed in the headset with the ZED image's aspect-ratio kept
     unsigned int widthFinal = bufferSize.w / 2;
     float heightGL = 1.f;
     float widthGL = 1.f;
     if (usefulWidth > 0.f) {
-        unsigned int heightFinal = zed->getImageSize().height * widthFinal / usefulWidth;
+        unsigned int heightFinal = zedHeight * widthFinal / usefulWidth;
         // Convert this size to OpenGL viewport's frame's coordinates
         heightGL = (heightFinal) / (float) (bufferSize.h);
-        widthGL = ((zed->getImageSize().width * (heightFinal / (float) zed->getImageSize().height)) / (float) widthFinal);
+        widthGL = ((zedWidth * (heightFinal / (float)zedHeight)) / (float) widthFinal);
     } else {
         std::cout << "WARNING: ZED parameters got wrong values."
                 "Default vertical and horizontal FOV are used.\n"
@@ -341,7 +344,7 @@ int main(int argc, char **argv) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     // Initialize hit value
-    float hit = 0.02f;
+    float hit = 0.0f;
     // Initialize a boolean that will be used to stop the application�s loop and another one to pause/unpause rendering
     bool end = false;
     bool refresh = true;
@@ -429,28 +432,34 @@ int main(int argc, char **argv) {
         // Get eye poses, feeding in correct IPD offset
         ovr_GetEyePoses(session, frameIndex, ovrTrue, hmdToEyeOffset, eyeRenderPose, &sensorSampleTime);
 
+		sl::RuntimeParameters runtime_parameters;
+		runtime_parameters.enable_depth = false;
+
         // If the application is focused
         if (isVisible) {
             // If successful grab a new ZED image
-            if (!zed->grab(sl::zed::SENSING_MODE::STANDARD, false, false)) {
+            if (zed.grab(runtime_parameters)==sl::SUCCESS) {
                 // Update the ZED frame counter
                 zedc++;
                 if (refresh) {
-#if OPENGL_GPU_INTEROP
-                    sl::zed::Mat m = zed->retrieveImage_gpu(sl::zed::SIDE::LEFT);
-                    cudaArray_t arrIm;
-                    cudaGraphicsMapResources(1, &cimg_L, 0);
-                    cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_L, 0, 0);
-                    cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice);
-                    cudaGraphicsUnmapResources(1, &cimg_L, 0);
 
-                    m = zed->retrieveImage_gpu(sl::zed::SIDE::RIGHT);
-                    cudaGraphicsMapResources(1, &cimg_R, 0);
-                    cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_R, 0, 0);
-                    cudaMemcpy2DToArray(arrIm, 0, 0, m.data, m.step, zedWidth * 4, zedHeight, cudaMemcpyDeviceToDevice); // *4 = 4 channels * 1 bytes (uint)
-                    cudaGraphicsUnmapResources(1, &cimg_R, 0);
-#endif
+					cudaArray_t arrIm;
+					if (zed.retrieveImage(zed_image_Left, sl::VIEW_LEFT, sl::MEM_GPU) == sl::SUCCESS) {
+						cudaGraphicsMapResources(1, &cimg_L, 0);
+						cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_L, 0, 0);
+						cudaMemcpy2DToArray(arrIm, 0, 0, zed_image_Left.getPtr<sl::uchar1>(sl::MEM_GPU), zed_image_Left.getStepBytes(sl::MEM_GPU), zed_image_Left.getWidth() * 4, zed_image_Left.getHeight(), cudaMemcpyDeviceToDevice);
+						cudaGraphicsUnmapResources(1, &cimg_L, 0);
+					}
 
+
+					if (zed.retrieveImage(zed_image_Right, sl::VIEW_RIGHT, sl::MEM_GPU) == sl::SUCCESS) {
+						cudaGraphicsMapResources(1, &cimg_R, 0);
+						cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_R, 0, 0);
+						cudaMemcpy2DToArray(arrIm, 0, 0, zed_image_Right.getPtr<sl::uchar1>(sl::MEM_GPU), zed_image_Right.getStepBytes(sl::MEM_GPU), zed_image_Right.getWidth() * 4, zed_image_Right.getHeight(), cudaMemcpyDeviceToDevice);
+						cudaGraphicsUnmapResources(1, &cimg_R, 0);
+					}
+
+ 
                     // Bind the frame buffer
                     glBindFramebuffer(GL_FRAMEBUFFER, fboID);
                     // Set its color layer 0 as the current swap texture
@@ -467,9 +476,7 @@ int main(int argc, char **argv) {
                         glViewport(eye == ovrEye_Left ? 0 : bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
                         // Bind the left or right ZED image
                         glBindTexture(GL_TEXTURE_2D, eye == ovrEye_Left ? zedTextureID_L : zedTextureID_R);
-#if !OPENGL_GPU_INTEROP
-                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, zed->retrieveImage(eye == ovrEye_Left ? sl::zed::SIDE::LEFT : sl::zed::SIDE::RIGHT).data);
-#endif
+
                         // Bind the hit value
                         glUniform1f(glGetUniformLocation(shader.getProgramId(), "hit"), eye == ovrEye_Left ? hit : -hit);
                         // Bind the isLeft value
@@ -533,7 +540,7 @@ int main(int argc, char **argv) {
             SDL_GL_DeleteContext(glContext);
             SDL_DestroyWindow(window);
             SDL_Quit();
-            delete zed;
+			zed.close();
             return -1;
         }
 
@@ -582,7 +589,7 @@ int main(int argc, char **argv) {
     SDL_GL_DeleteContext(glContext);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    delete zed;
+	zed.close();
     // Quit
     return 0;
 }

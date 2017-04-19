@@ -15,23 +15,12 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 SET(EXECUTABLE_OUTPUT_PATH ".")
 
-if(MSVC12)
-    SET(VS_VERSION VS2013)
-else(MSVC12)
-    if(MSVC11)
-        SET(VS_VERSION VS2012)
-    else(MSVC11)
-        if(MSVC10)
-            SET(VS_VERSION VS2010)
-        endif(MSVC10)
-    endif(MSVC11)
-endif(MSVC12)
 
 SET(ZED_INCLUDE_DIRS $ENV{ZED_INCLUDE_DIRS})
-SET(ZED_LIBRARY_DIR $ENV{ZED_LIBRARY_DIR})
-
 SET(ZED_LIBRARIES $ENV{ZED_LIBRARIES_64})
-SET(OCULUS_LIBRARY_DIRS ${OCULUS_PATH}/LibOVR/Lib/Windows/x64/Release/${VS_VERSION})
+SET(ZED_LIBRARY_DIR $ENV{ZED_LIBRARY_DIR})
+		
+SET(OCULUS_LIBRARY_DIRS ${OCULUS_PATH}/LibOVR/Lib/Windows/x64/Release/VS2015)
 SET(SDL_LIBRARY_DIRS ${SDL_PATH}/lib/x64)
 
 SET(GLEW_LIBRARY_DIRS $ENV{GLEW_LIBRARY_DIRS})
@@ -62,7 +51,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${OCULUS_INCLUDE_DIRS})
 include_directories(${SDL_INCLUDE_DIRS})
 include_directories(${CUDA_INCLUDE_DIRS})
-include_directories($ENV{EIGEN_DIR})
 
 
 link_directories(${ZED_LIBRARY_DIR})
@@ -81,13 +69,14 @@ ADD_EXECUTABLE(${execName} ${SRC_FILES})
 set_property(TARGET ${execName} PROPERTY OUTPUT_NAME "ZED Oculus Viewer")
 add_definitions(-std=c++0x)
 
-#add_definitions(-DOPENGL_GPU_INTEROP)
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 
 # Add the required libraries for linking:
 TARGET_LINK_LIBRARIES(${execName}
 			${ZED_LIBRARIES}
 			${OPENGL_LIBRARIES}
-                        ${GLUT_LIBRARY}
+            ${GLUT_LIBRARY}
 			${GLEW_LIBRARIES}
 			${OpenCV_LIBRARIES}
 			${SDL_LIBRARIES}

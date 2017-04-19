@@ -10,10 +10,10 @@ This sample shows how to capture stereo video from the ZED and display it in an 
 
 ### Prerequisites
 
-- Windows 7 64 bits or later
-- [ZED SDK](https://www.stereolabs.com/developers/) and its dependencies ([CUDA](https://developer.nvidia.com/cuda-downloads), [OpenCV 3.1](http://opencv.org/downloads.html))
-- [Oculus SDK 1.3.0](https://developer.oculus.com/downloads/pc/1.3.0/Oculus_SDK_for_Windows/) or later
-- [GLEW](http://glew.sourceforge.net)
+- Windows 64 bits
+- [ZED SDK 2.0](https://www.stereolabs.com/developers/) and its dependencies ([CUDA 8.0](https://developer.nvidia.com/cuda-downloads), [OpenCV 3.1](http://opencv.org/downloads.html))
+- [Oculus SDK](https://developer.oculus.com/downloads/package/oculus-sdk-for-windows/) (recommended 1.13)
+- [GLEW 1.12](http://glew.sourceforge.net or in the dependencies ZED SDK folder)
 - [SDL](http://libsdl.org/download-2.0.php)
 
 
@@ -32,9 +32,9 @@ Download the sample and follow these instructions:
 ## Features
 
 This sample show how to render the ZED stereo images in a Rift.
-- Two modes are available :
-  - The first one, enabled by default, takes the ZED images from a CPU buffer and renders them into the Rift.
-  - The second mode captures the images in a CUDA GPU buffer that is rendered directly into the Rift, using OpenGL/CUDA interoperability. This mode improves video framerate and latency.
+It uses the CUDA-OpenGL interoperability to send images through opengl in the most effective way (without going back to CPU)
+
+
 
 ## Keyboard shortcuts
 
@@ -44,8 +44,3 @@ This sample show how to render the ZED stereo images in a Rift.
   'q'                     | Quit the application.                                                       
 
 
-### OpenGL/CUDA interoperability
-
-To get a significant performance boost, you can enable the OpenGL/CUDA interoperability. This will avoid costly GPU to CPU readback and unnecessary memory copies. However, the code is more complex if you are not familiar with CUDA.
-
- - Add the preprocessor definition OPENGL_GPU_INTEROP [here](https://github.com/stereolabs/zed-oculus/blob/master/CMakeLists.txt#L84).
