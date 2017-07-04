@@ -495,11 +495,11 @@ int main(int argc, char **argv) {
                     // Commit changes to the textures so they get picked up frame
                     ovr_CommitTextureSwapChain(session, textureChain);
                 }
-
-                // Do not forget to increment the frameIndex!
-                frameIndex++;
             }
+	    // Do not forget to increment the frameIndex!
+            frameIndex++;
         }
+	
         /*
         Note: Even if we don't ask to refresh the framebuffer or if the Camera::grab()
               doesn't catch a new frame, we have to submit an image to the Rift; it
