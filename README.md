@@ -1,21 +1,22 @@
 # Stereolabs ZED - Oculus
 
+**Note** : A [ZED mini]("https://zedstore.stereolabs.com/products/zed-mini") is required to fully enjoy this tutorial, the usage of a ZED will introduce visual discomfort due to wide baseline.
+
 This sample shows how to capture stereo video from the ZED and display it in an Oculus Rift headset. Works with Oculus DK2 and CV1.
 
 ## Getting started
 
 - First, download the latest version of the ZED SDK on [stereolabs.com](https://www.stereolabs.com).
-- For more information, check out our [tutorial](https://www.stereolabs.com/blog/index.php/2015/11/17/using-the-zed-with-oculus/) on using the ZED and Oculus Rift and read the ZED [API documentation](https://www.stereolabs.com/developers/documentation/API/).
+- For more information, check out our [tutorial](https://wp.me/p7p6oA-8k) on using the ZED and Oculus Rift and read the ZED [API documentation](https://www.stereolabs.com/developers/documentation/API/).
 
 
 ### Prerequisites
 
 - Windows 64 bits
-- [ZED SDK 2.0](https://www.stereolabs.com/developers/) and its dependencies ([CUDA 8.0](https://developer.nvidia.com/cuda-downloads), [OpenCV 3.1](http://opencv.org/downloads.html))
-- [Oculus SDK](https://developer.oculus.com/downloads/package/oculus-sdk-for-windows/) (recommended 1.13)
-- [GLEW 1.12](http://glew.sourceforge.net or in the dependencies ZED SDK folder)
+- [ZED SDK 2.2.0](https://www.stereolabs.com/developers/) and its dependencies ([CUDA](https://developer.nvidia.com/cuda-downloads)))
+- [Oculus SDK](https://developer.oculus.com/downloads/package/oculus-sdk-for-windows/) (1.17 or later)
+- [GLEW](http://glew.sourceforge.net) included in the ZED SDK dependencies folder
 - [SDL](http://libsdl.org/download-2.0.php)
-
 
 ## Build the program
 
