@@ -20,7 +20,7 @@ This sample shows how to capture stereo video from the ZED and display it in an 
 
 ## Build the program
 
-Download the sample and follow these instructions:
+Download the sample and follow the instructions below: [More](https://www.stereolabs.com/docs/getting-started/application-development/)
 
   - Create a folder called "build" in the source folder
   - Open cmake-gui and select the source and build folders
