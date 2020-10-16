@@ -95,11 +95,11 @@ void __zed_runner__(ThreadData &thread_data) {
     // Loop while the main loop is not over
     while (thread_data.run) {
         // try to grab a new image
-        if (thread_data.zed.grab(runtime_parameters) == sl::SUCCESS) {
+        if (thread_data.zed.grab(runtime_parameters) == sl::ERROR_CODE::SUCCESS) {
             // copy both left and right images
             thread_data.mtx.lock();
-            thread_data.zed.retrieveImage(thread_data.zed_image[0], sl::VIEW_LEFT, sl::MEM_GPU);
-            thread_data.zed.retrieveImage(thread_data.zed_image[1], sl::VIEW_RIGHT, sl::MEM_GPU);
+            thread_data.zed.retrieveImage(thread_data.zed_image[0], sl::VIEW::LEFT, sl::MEM::GPU);
+            thread_data.zed.retrieveImage(thread_data.zed_image[1], sl::VIEW::RIGHT, sl::MEM::GPU);
             thread_data.mtx.unlock();
             thread_data.new_frame = true;
         } else
@@ -154,10 +154,10 @@ int main(int argc, char **argv) {
 
     // Initialize the ZED Camera
     sl::InitParameters init_parameters;
-    init_parameters.depth_mode = sl::DEPTH_MODE_NONE;
-    init_parameters.camera_resolution = sl::RESOLUTION_HD720;
+    init_parameters.depth_mode = sl::DEPTH_MODE::NONE;
+    init_parameters.camera_resolution = sl::RESOLUTION::HD720;
     sl::ERROR_CODE err_ = thread_data.zed.open(init_parameters);
-    if (err_ != sl::SUCCESS) {
+    if (err_ != sl::ERROR_CODE::SUCCESS) {
         std::cout << "ERROR: " << sl::toString(err_) << std::endl;
         thread_data.zed.close();
         ovr_Destroy(session);
@@ -168,8 +168,9 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    int zedWidth = thread_data.zed.getResolution().width;
-    int zedHeight = thread_data.zed.getResolution().height;
+    const auto& resolution = thread_data.zed.getCameraInformation().camera_configuration.resolution;
+    auto zedWidth = static_cast<int>(resolution.width);
+    auto zedHeight = static_cast<int>(resolution.height);
 
     sl::uchar4 dark_bckgrd(44, 44, 44, 255);
     GLuint zedTextureID[2];
@@ -184,8 +185,8 @@ int main(int argc, char **argv) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
         // Set size and default value to texture
-        thread_data.zed_image[eye].alloc(zedWidth, zedHeight, sl::MAT_TYPE_8U_C4, sl::MEM_GPU);
-        thread_data.zed_image[eye].setTo(dark_bckgrd, sl::MEM_GPU);
+        thread_data.zed_image[eye].alloc(zedWidth, zedHeight, sl::MAT_TYPE::U8_C4, sl::MEM::GPU);
+        thread_data.zed_image[eye].setTo(dark_bckgrd, sl::MEM::GPU);
     }
 
     // Register texture
@@ -420,10 +421,10 @@ int main(int argc, char **argv) {
                 thread_data.mtx.lock();
                 cudaArray_t arrIm;
                 cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_l, 0, 0);
-                cudaMemcpy2DToArray(arrIm, 0, 0, thread_data.zed_image[ovrEye_Left].getPtr<sl::uchar1>(sl::MEM_GPU), thread_data.zed_image[ovrEye_Left].getStepBytes(sl::MEM_GPU), thread_data.zed_image[ovrEye_Left].getWidth() * 4, thread_data.zed_image[ovrEye_Left].getHeight(), cudaMemcpyDeviceToDevice);
+                cudaMemcpy2DToArray(arrIm, 0, 0, thread_data.zed_image[ovrEye_Left].getPtr<sl::uchar1>(sl::MEM::GPU), thread_data.zed_image[ovrEye_Left].getStepBytes(sl::MEM::GPU), thread_data.zed_image[ovrEye_Left].getWidth() * 4, thread_data.zed_image[ovrEye_Left].getHeight(), cudaMemcpyDeviceToDevice);
 
                 cudaGraphicsSubResourceGetMappedArray(&arrIm, cimg_r, 0, 0);
-                cudaMemcpy2DToArray(arrIm, 0, 0, thread_data.zed_image[ovrEye_Right].getPtr<sl::uchar1>(sl::MEM_GPU), thread_data.zed_image[ovrEye_Right].getStepBytes(sl::MEM_GPU), thread_data.zed_image[ovrEye_Left].getWidth() * 4, thread_data.zed_image[ovrEye_Left].getHeight(), cudaMemcpyDeviceToDevice);
+                cudaMemcpy2DToArray(arrIm, 0, 0, thread_data.zed_image[ovrEye_Right].getPtr<sl::uchar1>(sl::MEM::GPU), thread_data.zed_image[ovrEye_Right].getStepBytes(sl::MEM::GPU), thread_data.zed_image[ovrEye_Left].getWidth() * 4, thread_data.zed_image[ovrEye_Left].getHeight(), cudaMemcpyDeviceToDevice);
                 thread_data.mtx.unlock();
                 thread_data.new_frame = false;
 

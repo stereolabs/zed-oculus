@@ -13,7 +13,7 @@ endif(COMMAND cmake_policy)
 SET(EXECUTABLE_OUTPUT_PATH ".")
 
 # Mandatory
-find_package(ZED 2.2 REQUIRED)
+find_package(ZED 3.0 REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(cuda REQUIRED)
 find_package(OpenGL 3.0 REQUIRED)
