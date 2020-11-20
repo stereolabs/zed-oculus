@@ -7,7 +7,7 @@ This sample shows how to capture stereo video from the ZED and display it in an 
 ## Getting started
 
 - First, download the latest version of the ZED SDK on [stereolabs.com](https://www.stereolabs.com).
-- For more information, check out our [tutorial](https://wp.me/p7p6oA-8k) on using the ZED and Oculus Rift and read the ZED [API documentation](https://www.stereolabs.com/developers/documentation/API/).
+- For more information, check out our [tutorial](https://wp.me/p7p6oA-8k) on using the ZED and Oculus Rift and read the ZED [API documentation](https://www.stereolabs.com/developers/documentation/API/) or our [Community page](https://community.stereolabs.com).
 
 
 ### Prerequisites
@@ -45,3 +45,5 @@ It uses the CUDA-OpenGL interoperability to send images through opengl in the mo
   'q'                     | Quit the application.                                                       
 
 
+## Support
+If you need assistance go to our Community site at https://community.stereolabs.com/
