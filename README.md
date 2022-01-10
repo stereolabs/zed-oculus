@@ -13,7 +13,7 @@ This sample shows how to capture stereo video from the ZED and display it in an 
 ### Prerequisites
 
 - Windows 64 bits
-- [ZED SDK 2.2.0](https://www.stereolabs.com/developers/) and its dependencies ([CUDA](https://developer.nvidia.com/cuda-downloads)))
+- [ZED SDK 3.x](https://www.stereolabs.com/developers/) and its dependencies ([CUDA](https://developer.nvidia.com/cuda-downloads)). Last tested with ZED SDK 3.2.2
 - [Oculus SDK](https://developer.oculus.com/downloads/package/oculus-sdk-for-windows/) (1.17 or later)
 - [GLEW](http://glew.sourceforge.net) included in the ZED SDK dependencies folder
 - [SDL](http://libsdl.org/download-2.0.php)
